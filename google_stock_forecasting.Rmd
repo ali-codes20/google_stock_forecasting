@@ -1,0 +1,114 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+```{r}
+library(quantmod)
+library(tidyverse)
+library(ggplot2)
+```
+
+ 
+
+```{r}
+google_data <- getSymbols(Symbols = "GOOG", src = "yahoo", from = Sys.Date() - 2953, to = Sys.Date(), auto.assign = FALSE)
+google_data <- Cl(google_data)
+head(google_data)
+```
+
+```{r}
+#in order to begin analysing stock, here’s the charting plus some technical indicators such as Simple Moving Average (20 and 100), Bollinger bands (20, sd = 1), Relative Strength Index (14 days), and Moving Average Convergence Divergence (12, 25) as the technical analysis before forecasting.
+chart_Series(google_data, col = "black")
+add_SMA(n = 100, on = 1, col = "red")
+add_SMA(n = 20, on = 1, col = "black")
+add_RSI(n = 14, maType = "SMA")
+add_BBands(n = 20, maType = "SMA", sd = 1, on = -1)
+add_MACD(fast = 12, slow = 25, signal = 9, maType = "SMA", histogram = TRUE)
+```
+```{r}
+#Log tranformation stock data
+google_log <- log(google_data)
+head(google_log, n = 10)
+```
+```{r}
+plot(google_log, main = "log google_data chart")
+```
+```{r}
+#autocorrelation function
+acf_log <- acf(google_log, lag.max = 300)
+```
+```{r}
+#partial autocorrelation
+pacf_log <- pacf(google_log, lag.max = 300)
+```
+```{r}
+# difference logged data
+google_diff <- diff(google_log, lag = 1)
+
+google_diff <- na.locf(google_diff, na.rm = TRUE,
+                     fromLast = TRUE)
+plot(google_diff)
+```
+```{r}
+library(urca)
+library(tseries)
+adf <- adf.test(google_log, alternative = c("stationary", "explosive"), 
+                k = 0)
+adf
+```
+```{r}
+adf_diff <- adf.test(google_diff, alternative = c("stationary", "explosive"), 
+                k = 0)
+adf_diff
+```
+```{r}
+diff.acf <- acf(google_diff)
+```
+```{r}
+diff.pacf <- pacf(google_diff)
+```
+```{r}
+# splitting into train and test data
+library(caTools)
+train_data <- google_diff[1:1270]
+
+```
+```{r}
+library(forecast)
+set.seed(123)
+arima_model <- auto.arima(train_data, stationary = TRUE, ic = c("aicc", "aic", "bic"), 
+                          trace = TRUE)
+```
+
+```{r}
+#summary for choosen best arima(p,d,q) model
+#Autoregressive(p), lag(d), moving average(q)
+summary(arima_model)
+```
+
+```{r}
+#diagnostic checking
+checkresiduals(arima_model) 
+```
+```{r}
+arima <- arima(train_data, order = c(0, 0, 1))
+summary(arima)
+```
+```{r}
+forecast1 <- forecast(arima, h = 100)
+plot(forecast1)
+```
+```{r}
+checkresiduals(arima)
+```
+```{r}
+arima <- arima(google_log[1:1270], order = c(0, 0, 1))
+summary(arima)
+```
+
+```{r}
+forecast_ori <- forecast(arima, h = 200)
+a <- ts(google_log)
+forecast_ori %>% autoplot() + autolayer(a)
+```
+
